@@ -1,81 +1,16 @@
 # Lion or Tiger Classifier
 
-A transfer-learning image classifier that predicts whether an image contains a **lion** or a **tiger**. The fine-tuned EfficientNetB0 model is exposed through a FastAPI service and a simple browser UI with image upload and camera capture.
+## Overview
 
-## Features
+Lion or Tiger Classifier is an image-classification application that distinguishes between lions and tigers. It uses a fine-tuned EfficientNetB0 model trained with transfer learning and exposes predictions through a FastAPI-powered web interface.
 
-- Binary lion/tiger image classification
-- Fine-tuned EfficientNetB0 model
-- FastAPI REST endpoint
-- Browser UI with upload and camera support
-- Docker and Render deployment configuration
-- Health-check endpoint
+Users can upload an image or capture one with their device camera. The application returns the predicted class, confidence score, and probability for each class.
 
-## Project structure
+## Objective
 
-```text
-app.py                              FastAPI application
-index.html                         Browser UI
-lion_tiger_classifier_finetuned.keras  Trained model
-class_names.json                   Label order
-Dockerfile                         Container configuration
-render.yaml                        Render Blueprint
-fine_tune.py                       Fine-tuning script
-```
+The project demonstrates an end-to-end machine-learning workflow: supervised image classification, transfer learning, model fine-tuning, API inference, and browser-based interaction.
 
-## Run locally
+## Classes
 
-Create and activate a virtual environment, then install dependencies:
-
-```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-py -m pip install -r requirements.txt
-```
-
-Start the application:
-
-```powershell
-uvicorn app:app --reload
-```
-
-Open the UI at [http://127.0.0.1:8000](http://127.0.0.1:8000). API documentation is available at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
-
-## API
-
-### `GET /health`
-
-Returns service status:
-
-```json
-{"status": "healthy"}
-```
-
-### `POST /predict`
-
-Accepts an image upload using the multipart field `file` and returns the predicted class, confidence, and both class probabilities.
-
-Example response:
-
-```json
-{
-  "prediction": "tiger",
-  "confidence": 0.947,
-  "probabilities": {
-    "lion": 0.053,
-    "tiger": 0.947
-  }
-}
-```
-
-## Deploy to Render
-
-Push the repository to GitHub and create a Render **Blueprint** from the repository. Render will use `render.yaml` and build the application from `Dockerfile`. The service uses `/health` for health checks.
-
-## Limitations
-
-This is a two-class classifier. It will always choose either `lion` or `tiger`, even for unrelated images. Performance depends on image quality and similarity to the training data.
-
-## License
-
-Add the project license and dataset attribution here before public or commercial use.
+- Lion
+- Tiger
