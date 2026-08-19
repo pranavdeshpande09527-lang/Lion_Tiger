@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lion or Tiger</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #172033; background: #f3f6fb; }
+    body { max-width: 680px; margin: 0 auto; padding: 24px 16px 48px; }
+    main { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 8px 30px #17203318; }
+    h1 { margin-top: 0; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
+    button, .file-button { border: 0; border-radius: 10px; padding: 12px 16px; font: inherit; cursor: pointer; background: #e7ecf5; }
+    button.primary, .file-button { color: white; background: #2563eb; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+    input[type=file] { display: none; }
+    #preview { display: none; width: 100%; max-height: 360px; object-fit: contain; border-radius: 12px; background: #eef2f7; }
+    video { display: none; width: 100%; border-radius: 12px; background: #111827; }
+    #status { min-height: 24px; color: #526078; }
+    #result { display: none; margin-top: 20px; padding: 18px; border-radius: 12px; background: #eef6ff; }
+    #prediction { font-size: 1.8rem; font-weight: 700; text-transform: capitalize; }
+    .bar { height: 10px; background: #dce3ee; border-radius: 10px; overflow: hidden; margin: 6px 0 12px; }
+    .fill { height: 100%; background: #2563eb; width: 0%; transition: width .3s ease; }
+    .label-row { display: flex; justify-content: space-between; }
+    .small { color: #526078; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Lion or Tiger?</h1>
+    <p class="small">Choose a photo or use your camera, then ask the model for a prediction.</p>
+
+    <div class="actions">
+      <label class="file-button" for="fileInput">Upload image</label>
+      <input id="fileInput" type="file" accept="image/*" />
+      <button id="cameraButton" type="button">Use camera</button>
+      <button id="captureButton" type="button" class="primary" hidden>Take photo</button>
+      <button id="stopCameraButton" type="button" hidden>Stop camera</button>
+    </div>
+
+    <video id="video" autoplay playsinline></video>
+    <img id="preview" alt="Selected image preview" />
+    <canvas id="canvas" hidden></canvas>
+
+    <div class="actions">
+      <button id="predictButton" type="button" class="primary" disabled>Predict</button>
+    </div>
+    <p id="status" role="status"></p>
+
+    <section id="result" aria-live="polite">
+      <div>Prediction</div>
+      <div id="prediction"></div>
+      <p id="confidence"></p>
+      <div class="label-row"><span>Lion</span><span id="lionValue">0%</span></div>
+      <div class="bar"><div id="lionBar" class="fill"></div></div>
+      <div class="label-row"><span>Tiger</span><span id="tigerValue">0%</span></div>
+      <div class="bar"><div id="tigerBar" class="fill"></div></div>
+    </section>
+  </main>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const cameraButton = document.getElementById('cameraButton');
+    const captureButton = document.getElementById('captureButton');
+    const stopCameraButton = document.getElementById('stopCameraButton');
+    const predictButton = document.getElementById('predictButton');
+    const preview = document.getElementById('preview');
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const status = document.getElementById('status');
+    let selectedFile = null;
+    let cameraStream = null;
+
+    function showPreview(file) {
+      selectedFile = file;
+      preview.src = URL.createObjectURL(file);
+      preview.style.display = 'block';
+      predictButton.disabled = false;
+      status.textContent = 'Image ready. Click Predict.';
+      document.getElementById('result').style.display = 'none';
+    }
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) showPreview(fileInput.files[0]);
+    });
+
+    cameraButton.addEventListener('click', async () => {
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        video.srcObject = cameraStream;
+        video.style.display = 'block';
+        captureButton.hidden = false;
+        stopCameraButton.hidden = false;
+        cameraButton.hidden = true;
+        status.textContent = 'Camera ready. Position the animal and take a photo.';
+      } catch (error) {
+        status.textContent = 'Camera access was denied or is unavailable. You can upload an image instead.';
+      }
+    });
+
+    captureButton.addEventListener('click', () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      canvas.toBlob(blob => showPreview(new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' })), 'image/jpeg', .92);
+      stopCamera();
+    });
+
+    function stopCamera() {
+      if (cameraStream) cameraStream.getTracks().forEach(track => track.stop());
+      cameraStream = null;
+      video.srcObject = null;
+      video.style.display = 'none';
+      captureButton.hidden = true;
+      stopCameraButton.hidden = true;
+      cameraButton.hidden = false;
+    }
+
+    stopCameraButton.addEventListener('click', stopCamera);
+
+    predictButton.addEventListener('click', async () => {
+      if (!selectedFile) return;
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      predictButton.disabled = true;
+      status.textContent = 'Asking the model...';
+      try {
+        const response = await fetch('/predict', { method: 'POST', body: formData });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || 'Prediction failed.');
+        document.getElementById('result').style.display = 'block';
+        document.getElementById('prediction').textContent = data.prediction;
+        document.getElementById('confidence').textContent = `Confidence: ${(data.confidence * 100).toFixed(2)}%`;
+        const lion = data.probabilities.lion * 100;
+        const tiger = data.probabilities.tiger * 100;
+        document.getElementById('lionValue').textContent = `${lion.toFixed(2)}%`;
+        document.getElementById('tigerValue').textContent = `${tiger.toFixed(2)}%`;
+        document.getElementById('lionBar').style.width = `${lion}%`;
+        document.getElementById('tigerBar').style.width = `${tiger}%`;
+        status.textContent = 'Prediction complete.';
+      } catch (error) {
+        status.textContent = error.message;
+      } finally {
+        predictButton.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
